@@ -1,0 +1,20 @@
+[project]
+name = "tempus"
+version = "0.1.0"
+description = "A Python GUI application"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "pandas>=2.0.0",
+    "streamlit",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "ty>=0.0.1",
+]
+
+[tool.ruff]
+line-length = 120

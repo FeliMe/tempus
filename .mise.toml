@@ -1,0 +1,7 @@
+[tools]
+uv = "latest"
+"pipx:ruff"="latest"
+"pipx:ty"="latest"
+
+[settings]
+idiomatic_version_file_enable_tools = []
