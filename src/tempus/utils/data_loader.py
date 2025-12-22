@@ -10,18 +10,27 @@ import streamlit as st
 def load_csv_data(file: BinaryIO) -> pd.DataFrame:
     """Load CSV data from an uploaded file and process it into a DataFrame.
 
+    Supports both standard CSV format and German format (semicolon separator,
+    comma decimal).
+
     Args:
         file: A file-like object containing CSV data.
 
     Returns:
-        A pandas DataFrame with the CSV data. If the first column can be
-        parsed as datetime, it will be set as the index.
+        A pandas DataFrame with the CSV data. If datetime columns are found,
+        they will be combined and set as the index.
 
     Raises:
         ValueError: If the file is empty or has invalid CSV format.
     """
     try:
-        df = pd.read_csv(file)
+        # First, try German format (semicolon separator, comma decimal)
+        df = pd.read_csv(file, sep=";", decimal=",")
+        
+        # If only one column, it wasn't semicolon-separated, try comma
+        if len(df.columns) == 1:
+            file.seek(0)
+            df = pd.read_csv(file)
     except pd.errors.EmptyDataError as e:
         raise ValueError("The uploaded file is empty.") from e
     except pd.errors.ParserError as e:
@@ -32,6 +41,14 @@ def load_csv_data(file: BinaryIO) -> pd.DataFrame:
 
     # Check if index is already a DatetimeIndex
     if isinstance(df.index, pd.DatetimeIndex):
+        return df
+
+    # Handle German temperature data format with separate Datum and Uhrzeit columns
+    if "Datum" in df.columns and "Uhrzeit" in df.columns:
+        # Combine Datum and Uhrzeit into a single datetime index
+        df["Datetime"] = pd.to_datetime(df["Datum"])
+        df = df.drop(columns=["Datum", "Uhrzeit"])
+        df = df.set_index("Datetime")
         return df
 
     # Attempt to parse the first column as datetime and set as index

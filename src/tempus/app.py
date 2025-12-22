@@ -4,7 +4,14 @@ import pandas as pd
 import streamlit as st
 
 from tempus.utils.data_loader import load_csv_data
-from tempus.utils.plotter import LineDashStyle, create_time_series_chart
+from tempus.utils.plotter import create_time_series_chart
+
+# Default colors (Plotly default color cycle)
+DEFAULT_COLORS = [
+    "#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A",
+    "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52",
+]
+LINE_STYLE_OPTIONS = ["solid", "dash", "dot", "dashdot"]
 
 # Page config
 st.title("Time Series Data Viewer")
@@ -24,49 +31,69 @@ except ValueError as e:
     st.error(f"Error loading CSV: {e}")
     st.stop()
 
-# --- Sidebar: Column Selection ---
-st.sidebar.header("Column Selection")
-selected_columns = st.sidebar.multiselect(
-    "Select Columns",
-    options=df.columns.tolist(),
-    default=df.columns.tolist(),
-)
+# Use all columns by default
+selected_columns = df.columns.tolist()
 
-# --- Sidebar: Time Series Controls ---
-st.sidebar.header("Time Series Controls")
-smoothing = st.sidebar.slider("Smoothing (Rolling Average)", min_value=1, max_value=50, value=1)
-
-# Date range filtering (only if index is datetime)
-if isinstance(df.index, pd.DatetimeIndex):
-    min_date, max_date = df.index.min().date(), df.index.max().date()
-    start_date = st.sidebar.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
-    end_date = st.sidebar.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
-    df = df.loc[str(start_date):str(end_date)]
-
-# --- Sidebar: Styling ---
-st.sidebar.header("Styling")
-line_styles: dict[str, LineDashStyle] = {
-    "Solid": "solid",
-    "Dash": "dash",
-    "Dot": "dot",
-    "Dash-Dot": "dashdot",
-}
-line_style = st.sidebar.selectbox("Line Style", options=list(line_styles.keys()), index=0)
-
-use_custom_color = st.sidebar.checkbox("Use Custom Color", value=False)
-custom_color = st.sidebar.color_picker("Line Color", value="#1f77b4") if use_custom_color else None
+# --- Build Style DataFrame for Interactive Legend ---
+# Initialize style_df in session state if not present or if columns changed
+if "style_df" not in st.session_state or set(st.session_state.style_df.index) != set(selected_columns):
+    style_data = {
+        "Color": [DEFAULT_COLORS[i % len(DEFAULT_COLORS)] for i in range(len(selected_columns))],
+        "Style": ["solid"] * len(selected_columns),
+        "Width": [2] * len(selected_columns),
+        "Visible": [True] * len(selected_columns),
+    }
+    st.session_state.style_df = pd.DataFrame(style_data, index=selected_columns)
+# Ensure Visible column exists for existing style_df
+elif "Visible" not in st.session_state.style_df.columns:
+    st.session_state.style_df["Visible"] = True
 
 # --- Create and Display Chart ---
 fig = create_time_series_chart(
     df=df,
     columns=selected_columns,
-    smoothing_window=smoothing,
-    line_dash=line_styles[line_style],
-    line_color=custom_color,
+    style_df=st.session_state.style_df,
 )
 
 st.plotly_chart(
     fig,
     use_container_width=True,
-    config={"scrollZoom": True, "displayModeBar": True},
+    config={"scrollZoom": True, "displayModeBar": True, "doubleClickDelay": 500},
 )
+
+# --- Series Configuration (Interactive Legend) ---
+with st.expander("Series Configuration", expanded=False):
+    if selected_columns:
+        edited_style_df = st.data_editor(
+            st.session_state.style_df,
+            column_config={
+                "Color": st.column_config.TextColumn(
+                    "Color",
+                    help="Enter a hex color (e.g., #FF5733)",
+                ),
+                "Style": st.column_config.SelectboxColumn(
+                    "Style",
+                    help="Line dash style",
+                    options=LINE_STYLE_OPTIONS,
+                ),
+                "Width": st.column_config.NumberColumn(
+                    "Width",
+                    help="Line width (1-5)",
+                    min_value=1,
+                    max_value=5,
+                    step=1,
+                ),
+                "Visible": st.column_config.CheckboxColumn(
+                    "Visible",
+                    help="Toggle series visibility",
+                    default=True,
+                ),
+            },
+            use_container_width=True,
+            hide_index=False,
+            key="style_editor",
+        )
+        # Update session state with edited values
+        st.session_state.style_df = edited_style_df
+    else:
+        st.info("Select columns to configure styles.")
