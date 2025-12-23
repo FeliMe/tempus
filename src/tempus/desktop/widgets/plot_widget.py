@@ -1,6 +1,6 @@
 """High-performance plot widget using pyqtgraph."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pyqtgraph as pg
@@ -131,6 +131,7 @@ class TimeSeriesPlotWidget(QWidget):
         super().__init__(parent)
         self._curves: dict[str, pg.PlotDataItem] = {}
         self._series_data: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # Store x,y data for range calc
+        self._day_lines: list[pg.InfiniteLine] = []  # Day boundary lines
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -223,6 +224,9 @@ class TimeSeriesPlotWidget(QWidget):
 
         # Update crosshair
         self._crosshair.update_theme()
+
+        # Update day boundary lines
+        self.update_day_boundary_theme()
 
         # Update title if set
         if self._current_title:
@@ -353,6 +357,62 @@ class TimeSeriesPlotWidget(QWidget):
             self.remove_series(name)
         self._curves.clear()
         self._series_data.clear()
+        self.clear_day_boundaries()
+
+    def add_day_boundaries(self, x_data: np.ndarray) -> None:
+        """Add vertical dashed lines at day boundaries (midnight).
+
+        Args:
+            x_data: X values (Unix timestamps)
+        """
+        self.clear_day_boundaries()
+
+        if len(x_data) == 0:
+            return
+
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+        pen = pg.mkPen(color=colors["day_boundary"], width=1, style=Qt.PenStyle.DashLine)
+
+        # Find day boundaries
+        start_ts = float(x_data.min())
+        end_ts = float(x_data.max())
+
+        # Get midnight of the first day
+        start_dt = datetime.fromtimestamp(start_ts)
+        current_day = datetime(start_dt.year, start_dt.month, start_dt.day)
+
+        # Move to next day if we're not exactly at midnight
+        if current_day.timestamp() < start_ts:
+            current_day += timedelta(days=1)
+
+        # Add lines for each day boundary
+        while current_day.timestamp() <= end_ts:
+            line = pg.InfiniteLine(
+                pos=current_day.timestamp(),
+                angle=90,
+                movable=False,
+                pen=pen,
+            )
+            self._plot_item.addItem(line, ignoreBounds=True)
+            self._day_lines.append(line)
+
+            # Move to next day
+            current_day += timedelta(days=1)
+
+    def clear_day_boundaries(self) -> None:
+        """Remove all day boundary lines."""
+        for line in self._day_lines:
+            self._plot_item.removeItem(line)
+        self._day_lines.clear()
+
+    def update_day_boundary_theme(self) -> None:
+        """Update day boundary line colors for current theme."""
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+        pen = pg.mkPen(color=colors["day_boundary"], width=1, style=Qt.PenStyle.DashLine)
+        for line in self._day_lines:
+            line.setPen(pen)
 
     def auto_range(self) -> None:
         """Reset view to show all data, including hidden series."""

@@ -46,6 +46,7 @@ THEME_COLORS = {
         "legend_text": "#1e1e1e",
         "title_color": "#1e1e1e",
         "label_color": "#555555",
+        "day_boundary": "#cccccc",
     },
     Theme.DARK: {
         # Application colors
@@ -75,6 +76,7 @@ THEME_COLORS = {
         "legend_text": "#d4d4d4",
         "title_color": "#d4d4d4",
         "label_color": "#aaaaaa",
+        "day_boundary": "#555555",
     },
 }
 
@@ -373,4 +375,5 @@ class ThemeManager(QObject):
             "legend_text": colors["legend_text"],
             "title_color": colors["title_color"],
             "label_color": colors["label_color"],
+            "day_boundary": colors["day_boundary"],
         }

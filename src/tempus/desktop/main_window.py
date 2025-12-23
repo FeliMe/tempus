@@ -296,6 +296,9 @@ class MainWindow(QMainWindow):
                 width=config["line_width"],
             )
 
+        # Add day boundary lines
+        self._plot_widget.add_day_boundaries(time_values)
+
         # Set plot title
         self._plot_widget.set_title(filename)
 
