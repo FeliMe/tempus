@@ -1,0 +1,17 @@
+{
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        }
+    },
+
+    // Ensure Ruff is used for linting
+    "ruff.enable": true,
+    "ruff.organizeImports": true,
+
+    // Type checking mode
+    "python.analysis.typeCheckingMode": "standard",
+}

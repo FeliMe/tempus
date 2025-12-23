@@ -29,13 +29,6 @@ wheels/
 # Environments
 .venv
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
 # Ruff
 .ruff_cache/
 
