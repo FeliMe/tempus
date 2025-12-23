@@ -102,8 +102,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--size",
         type=int,
-        default=500,
-        help="Target size in MB (default: 500)",
+        default=10,
+        help="Target size in MB (default: 10)",
     )
 
     args = parser.parse_args()

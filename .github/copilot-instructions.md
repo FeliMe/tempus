@@ -24,5 +24,6 @@ You are a Senior Python Engineer specializing in Streamlit data applications. Yo
 - Use `try-except` blocks for file operations and parsing.
 - Use `st.error()` to display user-friendly error messages instead of letting the app crash with a stack trace.
 
-## 5. Running Python
-- When executing Python code, use `uv run -- python` to ensure the correct environment and dependencies are used.
+## 5. Software stack
+- **Installation**: We are using `uv` as a package manager, `ruff` for linting, and `ty` for type checking. These tools are managed by `mise`.
+- **Running Python**: Use `uv run python <script>` to ensure the correct environment is used.

@@ -1,6 +1,17 @@
 # Tempus
 
-TBD: Project description goes here.
+A lightweight web application for visualizing time series data from CSV files.
+
+## Features
+
+- **CSV Upload**: Drag-and-drop or browse to upload CSV files
+- **Interactive Charts**: Toggle individual time series on/off, zoom, and pan
+
+## Tech Stack
+
+- **Streamlit** - Web framework
+- **Pandas** - Data processing (with PyArrow backend for performance)
+- **Plotly** - Interactive charting
 
 ## Installation
 
