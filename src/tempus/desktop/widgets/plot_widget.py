@@ -46,6 +46,7 @@ class CrosshairManager:
         self.plot_widget = plot_widget
         self.plot_item = plot_widget.getPlotItem()
         self._datetime_axis = datetime_axis
+        self._parent_widget: TimeSeriesPlotWidget | None = None
 
         # Get theme colors
         theme_manager = ThemeManager.instance()
@@ -59,8 +60,8 @@ class CrosshairManager:
         self.plot_item.addItem(self.v_line, ignoreBounds=True)
         self.plot_item.addItem(self.h_line, ignoreBounds=True)
 
-        # Create label for coordinates
-        self.label = pg.TextItem(anchor=(0, 1), color=colors["crosshair_label"])
+        # Create label for coordinates (anchor top-right to avoid legend)
+        self.label = pg.TextItem(anchor=(1, 0), color=colors["crosshair_label"])
         self.label.setFont(QFont("Monospace", 9))
         self.plot_item.addItem(self.label, ignoreBounds=True)
 
@@ -70,6 +71,10 @@ class CrosshairManager:
         self.proxy = pg.SignalProxy(scene.sigMouseMoved, rateLimit=60, slot=self._on_mouse_moved)  # type: ignore[attr-defined]
 
         self._visible = True
+
+    def set_parent_widget(self, parent: "TimeSeriesPlotWidget") -> None:
+        """Set reference to parent widget for accessing series data."""
+        self._parent_widget = parent
 
     def update_theme(self) -> None:
         """Update crosshair colors for current theme."""
@@ -100,11 +105,18 @@ class CrosshairManager:
                     x_str = f"{x:.2f}"
             else:
                 x_str = f"{x:.2f}"
-            self.label.setText(f"x={x_str}, y={y:.2f}")
 
-            # Position label in top-left of view
+            # Find closest series
+            series_name = self._find_closest_series(x, y)
+
+            label_text = f"x={x_str}, y={y:.2f}"
+            if series_name:
+                label_text += f" [{series_name}]"
+            self.label.setText(label_text)
+
+            # Position label in top-right of view (to avoid legend)
             view_range = self.plot_item.viewRange()
-            self.label.setPos(view_range[0][0], view_range[1][1])
+            self.label.setPos(view_range[0][1], view_range[1][1])
 
     def set_visible(self, visible: bool) -> None:
         """Show or hide the crosshair."""
@@ -112,6 +124,44 @@ class CrosshairManager:
         self.v_line.setVisible(visible)
         self.h_line.setVisible(visible)
         self.label.setVisible(visible)
+
+    def _find_closest_series(self, x: float, y: float) -> str | None:
+        """Find the series name closest to the given coordinates."""
+        if self._parent_widget is None:
+            return None
+
+        series_data = self._parent_widget._series_data
+        curves = self._parent_widget._curves
+
+        if not series_data:
+            return None
+
+        closest_name = None
+        min_dist = float("inf")
+
+        y_range = self.plot_item.viewRange()[1]
+        y_scale = y_range[1] - y_range[0] if y_range[1] != y_range[0] else 1
+
+        for name, (x_data, y_data) in series_data.items():
+            if name not in curves:
+                continue
+            if not curves[name].isVisible():
+                continue
+            if len(x_data) == 0:
+                continue
+
+            idx = np.searchsorted(x_data, x)
+            idx = max(0, min(idx, len(y_data) - 1))
+
+            dist = abs(y_data[idx] - y) / y_scale
+            if dist < min_dist:
+                min_dist = dist
+                closest_name = name
+
+        # Only return if within 15% of the y-range
+        if min_dist < 0.15:
+            return closest_name
+        return None
 
 
 class TimeSeriesPlotWidget(QWidget):
@@ -179,6 +229,7 @@ class TimeSeriesPlotWidget(QWidget):
 
         # Add crosshair with datetime awareness
         self._crosshair = CrosshairManager(self._plot_widget, self._datetime_axis)
+        self._crosshair.set_parent_widget(self)
 
         # Connect range change signal
         self._plot_item.sigRangeChanged.connect(self._on_range_changed)
