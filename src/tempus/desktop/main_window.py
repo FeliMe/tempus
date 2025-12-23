@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PyQt6.QtWidgets import (
     QDockWidget,
@@ -40,6 +40,12 @@ class MainWindow(QMainWindow):
         # Get managers
         self._theme_manager = ThemeManager.instance()
         self._config_manager = ConfigManager.instance()
+
+        # Debounce timer for config saving (avoids disk writes on every UI change)
+        self._config_save_timer = QTimer()
+        self._config_save_timer.setSingleShot(True)
+        self._config_save_timer.setInterval(500)  # 500ms debounce
+        self._config_save_timer.timeout.connect(self._do_save_config)
 
         # Set up the UI
         self._setup_ui()
@@ -268,6 +274,11 @@ class MainWindow(QMainWindow):
             if config is None:
                 continue
 
+            # Only add visible series to the plot for performance
+            # Hidden series are added lazily when they become visible
+            if not config["visible"]:
+                continue
+
             # Get data (apply saved smoothing if any)
             if self._current_smoothing > 1:
                 y_data = self._model.get_smoothed_data(column, self._current_smoothing)
@@ -284,10 +295,6 @@ class MainWindow(QMainWindow):
                 color=config["color"],
                 width=config["line_width"],
             )
-
-            # Apply visibility from saved config
-            if not config["visible"]:
-                self._plot_widget.set_series_visible(column, False)
 
         # Set plot title
         self._plot_widget.set_title(filename)
@@ -308,11 +315,48 @@ class MainWindow(QMainWindow):
 
     def _on_visibility_changed(self, column: str, visible: bool) -> None:
         """Handle layer visibility change."""
+        if visible:
+            # Lazily add the series if it doesn't exist yet
+            self._ensure_series_added(column)
         self._plot_widget.set_series_visible(column, visible)
+
+    def _ensure_series_added(self, column: str) -> None:
+        """Ensure a series is added to the plot (lazy loading for performance)."""
+        # Check if series already exists in plot
+        if self._plot_widget.has_series(column):
+            return
+
+        time_values = self._model.time_values
+        if time_values is None:
+            return
+
+        config = self._layer_manager.get_layer_config(column)
+        if config is None:
+            return
+
+        # Get data with current smoothing
+        if self._current_smoothing > 1:
+            y_data = self._model.get_smoothed_data(column, self._current_smoothing)
+        else:
+            y_data = self._model.get_column_data(column)
+        if y_data is None:
+            return
+
+        # Add to plot
+        self._plot_widget.add_series(
+            name=column,
+            x_data=time_values,
+            y_data=y_data,
+            color=config["color"],
+            width=config["line_width"],
+        )
 
     def _on_toggle_all(self, visible: bool) -> None:
         """Handle toggle all layers visibility."""
         for column in self._model.numeric_columns:
+            if visible:
+                # Lazily add series if showing
+                self._ensure_series_added(column)
             self._plot_widget.set_series_visible(column, visible)
 
     def _on_color_changed(self, column: str, color: QColor) -> None:
@@ -331,8 +375,10 @@ class MainWindow(QMainWindow):
         if time_values is None:
             return
 
-        # Update all series with smoothed data
+        # Update only series that exist in the plot (visible ones)
         for column in self._model.numeric_columns:
+            if not self._plot_widget.has_series(column):
+                continue
             y_data = self._model.get_smoothed_data(column, window)
             if y_data is not None:
                 self._plot_widget.update_series_data(column, time_values, y_data)
@@ -422,7 +468,12 @@ class MainWindow(QMainWindow):
         self._config_manager.save_file_config(self._current_filepath, config_dict)
 
     def _on_config_changed(self) -> None:
-        """Handle any configuration change by saving to disk."""
+        """Handle any configuration change by scheduling a debounced save."""
+        # Debounce config saves to avoid disk I/O on every UI interaction
+        self._config_save_timer.start()
+
+    def _do_save_config(self) -> None:
+        """Actually save the config after debounce delay."""
         self._save_current_config()
 
     def closeEvent(self, a0: QCloseEvent | None) -> None:

@@ -1,6 +1,7 @@
 """Theme management for the desktop application."""
 
 from enum import Enum
+from typing import cast
 
 import pyqtgraph as pg
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -309,24 +310,28 @@ class ThemeManager(QObject):
 
         # Create and apply palette
         palette = QPalette()
-        palette.setColor(QPalette.ColorRole.Window, colors["window"])
-        palette.setColor(QPalette.ColorRole.WindowText, colors["window_text"])
-        palette.setColor(QPalette.ColorRole.Base, colors["base"])
-        palette.setColor(QPalette.ColorRole.AlternateBase, colors["alternate_base"])
-        palette.setColor(QPalette.ColorRole.ToolTipBase, colors["tooltip_base"])
-        palette.setColor(QPalette.ColorRole.ToolTipText, colors["tooltip_text"])
-        palette.setColor(QPalette.ColorRole.Text, colors["text"])
-        palette.setColor(QPalette.ColorRole.Button, colors["button"])
-        palette.setColor(QPalette.ColorRole.ButtonText, colors["button_text"])
+        palette.setColor(QPalette.ColorRole.Window, cast(QColor, colors["window"]))
+        palette.setColor(QPalette.ColorRole.WindowText, cast(QColor, colors["window_text"]))
+        palette.setColor(QPalette.ColorRole.Base, cast(QColor, colors["base"]))
+        palette.setColor(QPalette.ColorRole.AlternateBase, cast(QColor, colors["alternate_base"]))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, cast(QColor, colors["tooltip_base"]))
+        palette.setColor(QPalette.ColorRole.ToolTipText, cast(QColor, colors["tooltip_text"]))
+        palette.setColor(QPalette.ColorRole.Text, cast(QColor, colors["text"]))
+        palette.setColor(QPalette.ColorRole.Button, cast(QColor, colors["button"]))
+        palette.setColor(QPalette.ColorRole.ButtonText, cast(QColor, colors["button_text"]))
         palette.setColor(QPalette.ColorRole.BrightText, Qt.GlobalColor.red)
-        palette.setColor(QPalette.ColorRole.Link, colors["link"])
-        palette.setColor(QPalette.ColorRole.Highlight, colors["highlight"])
-        palette.setColor(QPalette.ColorRole.HighlightedText, colors["highlighted_text"])
+        palette.setColor(QPalette.ColorRole.Link, cast(QColor, colors["link"]))
+        palette.setColor(QPalette.ColorRole.Highlight, cast(QColor, colors["highlight"]))
+        palette.setColor(QPalette.ColorRole.HighlightedText, cast(QColor, colors["highlighted_text"]))
 
         # Disabled colors
-        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, colors["disabled_text"])
-        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, colors["disabled_text"])
-        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, colors["disabled_text"])
+        palette.setColor(
+            QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, cast(QColor, colors["disabled_text"])
+        )
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, cast(QColor, colors["disabled_text"]))
+        palette.setColor(
+            QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, cast(QColor, colors["disabled_text"])
+        )
 
         app.setPalette(palette)  # type: ignore[union-attr]
         app.setStyleSheet(THEME_STYLESHEETS[theme])  # type: ignore[union-attr]
@@ -337,7 +342,7 @@ class ThemeManager(QObject):
             foreground=colors["plot_foreground"],
         )
 
-    def get_color(self, key: str) -> str | QColor:
+    def get_color(self, key: str) -> str | QColor | float:
         """Get a theme color by key.
 
         Args:

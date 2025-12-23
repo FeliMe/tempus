@@ -143,8 +143,10 @@ class TimeSeriesPlotWidget(QWidget):
         colors = theme_manager.get_plot_colors()
 
         # Configure pyqtgraph for current theme
+        # Note: antialias=False is critical for performance with large datasets
+        # and thick lines. Antialiasing thick lines is extremely expensive.
         pg.setConfigOptions(
-            antialias=True,
+            antialias=False,
             background=colors["background"],
             foreground=colors["foreground"],
         )
@@ -322,6 +324,17 @@ class TimeSeriesPlotWidget(QWidget):
             pen = curve.opts["pen"]
             color: str = pen.color().name() if hasattr(pen, "color") and callable(pen.color) else "#1f77b4"  # type: ignore[union-attr]
             curve.setPen(pg.mkPen(color=color, width=width))
+
+    def has_series(self, name: str) -> bool:
+        """Check if a series exists in the plot.
+
+        Args:
+            name: Series identifier
+
+        Returns:
+            True if the series exists, False otherwise
+        """
+        return name in self._curves
 
     def remove_series(self, name: str) -> None:
         """Remove a series from the plot.

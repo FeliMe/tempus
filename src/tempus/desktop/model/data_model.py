@@ -1,5 +1,6 @@
 """Data model for handling large CSV time-series data."""
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -177,7 +178,7 @@ class DataModel(QObject):
         return self._dataframe[column].to_numpy(dtype=np.float64, na_value=np.nan)
 
     def get_smoothed_data(self, column: str, window: int) -> np.ndarray | None:
-        """Get smoothed data using rolling average.
+        """Get smoothed data using rolling average with caching.
 
         Args:
             column: Column name
@@ -192,7 +193,21 @@ class DataModel(QObject):
         if window <= 1:
             return self.get_column_data(column)
 
-        # Use pandas rolling for efficient smoothing
+        # Use cached computation for better performance
+        return self._compute_smoothed_data(column, window)
+
+    @lru_cache(maxsize=128)
+    def _compute_smoothed_data(self, column: str, window: int) -> np.ndarray:
+        """Cached computation of smoothed data.
+
+        Args:
+            column: Column name
+            window: Rolling window size
+
+        Returns:
+            Numpy array of smoothed values
+        """
+        assert self._dataframe is not None
         series = self._dataframe[column]
         smoothed = series.rolling(window=window, center=True, min_periods=1).mean()
         return smoothed.to_numpy(dtype=np.float64)
@@ -205,6 +220,8 @@ class DataModel(QObject):
         self._time_column = None
         self._time_values = None
         self._datetime_values = None
+        # Clear the smoothing cache
+        self._compute_smoothed_data.cache_clear()
         self.data_cleared.emit()
 
     def get_statistics(self, column: str) -> dict[str, Any]:
