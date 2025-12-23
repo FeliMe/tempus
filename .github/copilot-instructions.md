@@ -23,3 +23,6 @@ You are a Senior Python Engineer specializing in Streamlit data applications. Yo
 ## 4. Error Handling
 - Use `try-except` blocks for file operations and parsing.
 - Use `st.error()` to display user-friendly error messages instead of letting the app crash with a stack trace.
+
+## 5. Running Python
+- When executing Python code, use `uv run -- python` to ensure the correct environment and dependencies are used.

@@ -5,3 +5,6 @@ uv = "latest"
 
 [settings]
 idiomatic_version_file_enable_tools = []
+
+[env]
+STREAMLIT_SERVER_MAX_UPLOAD_SIZE = "600"

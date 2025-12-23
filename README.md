@@ -21,7 +21,7 @@ uv sync
 
 ### Development Tools
 
-The following tools are managed by mise (see [.mise.toml](.mise.toml)):
+The following tools are managed by mise (see [mise.toml](mise.toml)):
 
 - **uv** - Package manager
 - **ruff** - Linting and formatting

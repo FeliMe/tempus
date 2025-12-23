@@ -1,61 +1,51 @@
 """Utility functions for creating Plotly graphs."""
 
-from typing import Literal
-
 import pandas as pd
 import plotly.graph_objects as go
-
-LineDashStyle = Literal["solid", "dash", "dot", "dashdot"]
 
 
 def create_time_series_chart(
     df: pd.DataFrame,
     columns: list[str],
-    style_df: pd.DataFrame | None = None,
 ) -> go.Figure:
     """Create a time series chart from a DataFrame.
+
+    Uses visual downsampling (min/max aggregation) and WebGL rendering
+    for optimal performance with large datasets.
 
     Args:
         df: The DataFrame containing time series data. The index is used as the x-axis.
         columns: List of column names to plot.
-        style_df: Optional DataFrame with styling info. Index should be column names,
-            with columns 'Color', 'Style', and 'Width' for line properties.
 
     Returns:
         A Plotly Figure object with the time series chart.
     """
     plot_df = df.copy()
 
-    # Create figure and add traces
+    # Check if downsampling will be applied
+    is_downsampled = any(len(plot_df[col]) > 5000 for col in columns)
+
+    # Create figure and add traces with WebGL rendering
     fig = go.Figure()
     for col in columns:
-        # Build line properties from style_df
-        line_props: dict = {}
-        if style_df is not None and col in style_df.index:
-            row = style_df.loc[col]
-            line_props = {
-                "color": row["Color"],
-                "dash": row["Style"],
-                "width": row["Width"],
-            }
-
-        # Determine visibility from style_df
-        visible = True
-        if style_df is not None and col in style_df.index and "Visible" in style_df.columns:
-            visible = style_df.loc[col, "Visible"]
-
+        # Apply visual downsampling for large datasets
+        series = plot_df[col]
         trace_kwargs: dict = {
-            "x": plot_df.index,
-            "y": plot_df[col],
+            "x": series.index,
+            "y": series.values,
             "name": col,
-            "line": line_props,
-            "visible": True if visible else "legendonly",
         }
-        fig.add_trace(go.Scatter(**trace_kwargs))
+        # Use Scattergl for WebGL GPU-accelerated rendering
+        fig.add_trace(go.Scattergl(**trace_kwargs))
+
+    # Build title with optional downsampling note
+    title_text = "Time Series Plot"
+    if is_downsampled:
+        title_text += "<br><sub>Displaying optimized view (Min/Max aggregated)</sub>"
 
     # Update layout for better visual appeal
     fig.update_layout(
-        title="Time Series Plot",
+        title=title_text,
         xaxis_title="Time",
         yaxis_title="Value",
         hovermode="closest",

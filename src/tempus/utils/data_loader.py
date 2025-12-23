@@ -11,7 +11,7 @@ def load_csv_data(file: BinaryIO) -> pd.DataFrame:
     """Load CSV data from an uploaded file and process it into a DataFrame.
 
     Supports both standard CSV format and German format (semicolon separator,
-    comma decimal).
+    comma decimal). Uses PyArrow for faster parsing of large files.
 
     Args:
         file: A file-like object containing CSV data.
@@ -25,12 +25,13 @@ def load_csv_data(file: BinaryIO) -> pd.DataFrame:
     """
     try:
         # First, try German format (semicolon separator, comma decimal)
+        # Note: PyArrow engine doesn't support decimal parameter, so we use default engine for German format
         df = pd.read_csv(file, sep=";", decimal=",")
-        
-        # If only one column, it wasn't semicolon-separated, try comma
+
+        # If only one column, it wasn't semicolon-separated, try comma with PyArrow
         if len(df.columns) == 1:
             file.seek(0)
-            df = pd.read_csv(file)
+            df = pd.read_csv(file, engine="pyarrow", dtype_backend="pyarrow")
     except pd.errors.EmptyDataError as e:
         raise ValueError("The uploaded file is empty.") from e
     except pd.errors.ParserError as e:
