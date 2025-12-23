@@ -5,16 +5,21 @@ build-backend = "hatchling.build"
 [project]
 name = "tempus"
 version = "0.1.0"
-description = "A Python GUI application"
+description = "A Python GUI application for visualizing large time-series datasets"
 readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
     "pandas>=2.0.0",
     "pyarrow",
-    "streamlit",
-    "plotly",
+    "PyQt6>=6.6.0",
+    "pyqtgraph>=0.13.0",
+    "pyqtdarktheme>=2.1.0",
+    "numpy>=1.24.0",
 ]
+
+[project.scripts]
+tempus-desktop = "tempus.desktop_app:main"
 
 [dependency-groups]
 dev = [

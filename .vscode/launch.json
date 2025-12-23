@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Desktop App",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tempus.desktop_app",
+            "args": ["data/MessTemperatur_20251221.csv"],
+            "preLaunchTask": "uv sync",
+            "justMyCode": true,
+        }
+    ]
+}
