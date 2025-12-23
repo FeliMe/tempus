@@ -8,6 +8,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
+from tempus.desktop.theme import ThemeManager
+
 
 class DateTimeAxis(pg.AxisItem):
     """Custom axis that displays Unix timestamps as formatted datetime strings."""
@@ -45,8 +47,12 @@ class CrosshairManager:
         self.plot_item = plot_widget.getPlotItem()
         self._datetime_axis = datetime_axis
 
+        # Get theme colors
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+
         # Create crosshair lines
-        pen = pg.mkPen(color="#888888", width=1, style=Qt.PenStyle.DashLine)
+        pen = pg.mkPen(color=colors["crosshair_pen"], width=1, style=Qt.PenStyle.DashLine)
         self.v_line = pg.InfiniteLine(angle=90, movable=False, pen=pen)
         self.h_line = pg.InfiniteLine(angle=0, movable=False, pen=pen)
 
@@ -54,7 +60,7 @@ class CrosshairManager:
         self.plot_item.addItem(self.h_line, ignoreBounds=True)
 
         # Create label for coordinates
-        self.label = pg.TextItem(anchor=(0, 1), color="#aaaaaa")
+        self.label = pg.TextItem(anchor=(0, 1), color=colors["crosshair_label"])
         self.label.setFont(QFont("Monospace", 9))
         self.plot_item.addItem(self.label, ignoreBounds=True)
 
@@ -64,6 +70,16 @@ class CrosshairManager:
         self.proxy = pg.SignalProxy(scene.sigMouseMoved, rateLimit=60, slot=self._on_mouse_moved)  # type: ignore[attr-defined]
 
         self._visible = True
+
+    def update_theme(self) -> None:
+        """Update crosshair colors for current theme."""
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+
+        pen = pg.mkPen(color=colors["crosshair_pen"], width=1, style=Qt.PenStyle.DashLine)
+        self.v_line.setPen(pen)
+        self.h_line.setPen(pen)
+        self.label.setColor(colors["crosshair_label"])
 
     def _on_mouse_moved(self, evt) -> None:
         """Update crosshair position on mouse move."""
@@ -114,6 +130,7 @@ class TimeSeriesPlotWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._curves: dict[str, pg.PlotDataItem] = {}
+        self._series_data: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # Store x,y data for range calc
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -121,11 +138,15 @@ class TimeSeriesPlotWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Configure pyqtgraph for dark theme
+        # Get theme colors
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+
+        # Configure pyqtgraph for current theme
         pg.setConfigOptions(
             antialias=True,
-            background="#1e1e1e",
-            foreground="#d4d4d4",
+            background=colors["background"],
+            foreground=colors["foreground"],
         )
 
         # Create custom datetime axis for x-axis
@@ -142,21 +163,16 @@ class TimeSeriesPlotWidget(QWidget):
         self._plot_item.setLabel("bottom", "Time")
         self._plot_item.setLabel("left", "Value")
 
-        # Enable grid with dark theme styling
-        self._plot_item.showGrid(x=True, y=True, alpha=0.3)
+        # Enable grid with theme styling
+        self._plot_item.showGrid(x=True, y=True, alpha=colors["grid_alpha"])
 
-        # Configure axis appearance for dark theme
-        axis_pen = pg.mkPen(color="#555555", width=1)
-        for axis_name in ["bottom", "left", "top", "right"]:
-            axis = self._plot_item.getAxis(axis_name)
-            axis.setPen(axis_pen)
-            axis.setTextPen(pg.mkPen(color="#aaaaaa"))
+        # Configure axis appearance for current theme
+        self._apply_axis_theme(colors)
 
         # Enable mouse interaction (X-axis only for time-series zoom)
         self._plot_item.setMouseEnabled(x=True, y=False)
-        # Keep Y-axis auto-ranging to always show full data range
-        self._plot_item.enableAutoRange(axis="y")
-        self._plot_item.setAutoVisible(y=True)
+        # Disable Y auto-range - we'll manage it manually to include hidden series
+        self._plot_item.disableAutoRange(axis="y")
 
         # Add crosshair with datetime awareness
         self._crosshair = CrosshairManager(self._plot_widget, self._datetime_axis)
@@ -166,8 +182,49 @@ class TimeSeriesPlotWidget(QWidget):
 
         # Add legend
         self._legend = self._plot_item.addLegend(offset=(10, 10))
-        self._legend.setBrush(pg.mkBrush(color="#2d2d2d"))
-        self._legend.setPen(pg.mkPen(color="#555555"))
+        self._legend.setBrush(pg.mkBrush(color=colors["legend_background"]))
+        self._legend.setPen(pg.mkPen(color=colors["legend_border"]))
+        self._legend.setLabelTextColor(colors["legend_text"])
+
+        # Store current title for theme updates
+        self._current_title: str | None = None
+
+        # Connect to theme changes
+        theme_manager.theme_changed.connect(self._on_theme_changed)
+
+    def _apply_axis_theme(self, colors: dict) -> None:
+        """Apply theme colors to axes."""
+        axis_pen = pg.mkPen(color=colors["axis_pen"], width=1)
+        for axis_name in ["bottom", "left", "top", "right"]:
+            axis = self._plot_item.getAxis(axis_name)
+            axis.setPen(axis_pen)
+            axis.setTextPen(pg.mkPen(color=colors["axis_text"]))
+
+    def _on_theme_changed(self, theme) -> None:
+        """Handle theme change."""
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+
+        # Update plot background
+        self._plot_widget.setBackground(colors["background"])
+
+        # Update axes
+        self._apply_axis_theme(colors)
+
+        # Update grid
+        self._plot_item.showGrid(x=True, y=True, alpha=colors["grid_alpha"])
+
+        # Update legend
+        self._legend.setBrush(pg.mkBrush(color=colors["legend_background"]))
+        self._legend.setPen(pg.mkPen(color=colors["legend_border"]))
+        self._legend.setLabelTextColor(colors["legend_text"])
+
+        # Update crosshair
+        self._crosshair.update_theme()
+
+        # Update title if set
+        if self._current_title:
+            self._plot_item.setTitle(self._current_title, color=colors["title_color"], size="12pt")
 
     def add_series(
         self,
@@ -190,6 +247,9 @@ class TimeSeriesPlotWidget(QWidget):
             color = color.name()
 
         pen = pg.mkPen(color=color, width=width)
+
+        # Store data for range calculations (includes hidden series)
+        self._series_data[name] = (x_data, y_data)
 
         if name in self._curves:
             # Update existing curve
@@ -222,6 +282,7 @@ class TimeSeriesPlotWidget(QWidget):
             y_data: New Y values
         """
         if name in self._curves:
+            self._series_data[name] = (x_data, y_data)
             self._curves[name].setData(x_data, y_data)
 
     def set_series_visible(self, name: str, visible: bool) -> None:
@@ -270,6 +331,7 @@ class TimeSeriesPlotWidget(QWidget):
         """
         if name in self._curves:
             curve = self._curves.pop(name)
+            self._series_data.pop(name, None)
             self._plot_item.removeItem(curve)
 
     def clear_all(self) -> None:
@@ -277,11 +339,36 @@ class TimeSeriesPlotWidget(QWidget):
         for name in list(self._curves.keys()):
             self.remove_series(name)
         self._curves.clear()
+        self._series_data.clear()
 
     def auto_range(self) -> None:
-        """Reset view to show all data."""
-        self._plot_item.enableAutoRange()
+        """Reset view to show all data, including hidden series."""
+        self._update_y_range()
+        # Auto-range X axis only
+        self._plot_item.enableAutoRange(axis="x")
         self._plot_item.autoRange()
+
+    def _update_y_range(self) -> None:
+        """Update Y axis range to include all series data (visible and hidden)."""
+        if not self._series_data:
+            return
+
+        y_min = float("inf")
+        y_max = float("-inf")
+
+        for _name, (x_data, y_data) in self._series_data.items():
+            # Filter out NaN values
+            valid_data = y_data[~np.isnan(y_data)]
+            if len(valid_data) > 0:
+                y_min = min(y_min, float(np.nanmin(valid_data)))
+                y_max = max(y_max, float(np.nanmax(valid_data)))
+
+        if y_min != float("inf") and y_max != float("-inf"):
+            # Add 5% padding
+            padding = (y_max - y_min) * 0.05
+            if padding == 0:
+                padding = 1.0  # Handle case where all values are the same
+            self._plot_item.setYRange(y_min - padding, y_max + padding, padding=0)
 
     def set_crosshair_visible(self, visible: bool) -> None:
         """Show or hide the crosshair."""
@@ -289,12 +376,17 @@ class TimeSeriesPlotWidget(QWidget):
 
     def set_title(self, title: str) -> None:
         """Set the plot title."""
-        self._plot_item.setTitle(title, color="#d4d4d4", size="12pt")
+        self._current_title = title
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+        self._plot_item.setTitle(title, color=colors["title_color"], size="12pt")
 
     def set_labels(self, x_label: str = "Time Index", y_label: str = "Value") -> None:
         """Set axis labels."""
-        self._plot_item.setLabel("bottom", x_label, color="#aaaaaa")
-        self._plot_item.setLabel("left", y_label, color="#aaaaaa")
+        theme_manager = ThemeManager.instance()
+        colors = theme_manager.get_plot_colors()
+        self._plot_item.setLabel("bottom", x_label, color=colors["label_color"])
+        self._plot_item.setLabel("left", y_label, color=colors["label_color"])
 
     def _on_range_changed(self, view_box, ranges) -> None:
         """Handle view range change."""

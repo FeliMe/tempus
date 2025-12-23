@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QColor, QKeySequence
+from PyQt6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PyQt6.QtWidgets import (
     QDockWidget,
     QFileDialog,
@@ -15,8 +15,10 @@ from PyQt6.QtWidgets import (
 )
 
 from tempus.desktop.model.data_model import DataModel
+from tempus.desktop.theme import Theme, ThemeManager
 from tempus.desktop.widgets.layer_manager import LayerManager
 from tempus.desktop.widgets.plot_widget import TimeSeriesPlotWidget
+from tempus.utils.config_manager import ConfigManager
 
 
 class MainWindow(QMainWindow):
@@ -33,6 +35,11 @@ class MainWindow(QMainWindow):
         # Initialize model
         self._model = DataModel(self)
         self._current_smoothing = 1
+        self._current_filepath: str | None = None
+
+        # Get managers
+        self._theme_manager = ThemeManager.instance()
+        self._config_manager = ConfigManager.instance()
 
         # Set up the UI
         self._setup_ui()
@@ -103,11 +110,31 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
+        # Theme toggle action
+        toggle_theme_action = QAction("&Dark Mode", self)
+        toggle_theme_action.setShortcut(QKeySequence("Ctrl+T"))
+        toggle_theme_action.setCheckable(True)
+        toggle_theme_action.setChecked(self._theme_manager.current_theme == Theme.DARK)
+        toggle_theme_action.triggered.connect(self._on_toggle_theme)
+        view_menu.addAction(toggle_theme_action)
+        self._toggle_theme_action = toggle_theme_action
+
+        view_menu.addSeparator()
+
         toggle_layers_action = self._layer_dock.toggleViewAction()
         if toggle_layers_action is not None:
             toggle_layers_action.setText("&Layer Manager")
             toggle_layers_action.setShortcut(QKeySequence("Ctrl+L"))
             view_menu.addAction(toggle_layers_action)
+
+        # Settings menu
+        settings_menu = menubar.addMenu("&Settings")
+        assert settings_menu is not None
+
+        reset_settings_action = QAction("&Reset File Settings...", self)
+        reset_settings_action.triggered.connect(self._on_reset_settings)
+        settings_menu.addAction(reset_settings_action)
+        self._reset_settings_action = reset_settings_action
 
         # Help menu
         help_menu = menubar.addMenu("&Help")
@@ -137,6 +164,14 @@ class MainWindow(QMainWindow):
         reset_action.triggered.connect(self._on_reset_view)
         toolbar.addAction(reset_action)
 
+        toolbar.addSeparator()
+
+        # Theme toggle action
+        theme_action = QAction("Toggle Theme", self)
+        theme_action.setToolTip("Switch between light and dark mode (Ctrl+T)")
+        theme_action.triggered.connect(self._on_toggle_theme)
+        toolbar.addAction(theme_action)
+
     def _setup_statusbar(self) -> None:
         """Set up the status bar."""
         self._statusbar = QStatusBar(self)
@@ -150,12 +185,19 @@ class MainWindow(QMainWindow):
         self._model.data_cleared.connect(self._on_data_cleared)
         self._model.error_occurred.connect(self._on_error)
 
-        # Layer manager signals
+        # Layer manager signals - UI updates
         self._layer_manager.visibility_changed.connect(self._on_visibility_changed)
         self._layer_manager.color_changed.connect(self._on_color_changed)
         self._layer_manager.line_width_changed.connect(self._on_line_width_changed)
         self._layer_manager.smoothing_changed.connect(self._on_smoothing_changed)
         self._layer_manager.toggle_all_changed.connect(self._on_toggle_all)
+
+        # Layer manager signals - Config persistence (save on any change)
+        self._layer_manager.visibility_changed.connect(lambda *_: self._on_config_changed())
+        self._layer_manager.color_changed.connect(lambda *_: self._on_config_changed())
+        self._layer_manager.line_width_changed.connect(lambda *_: self._on_config_changed())
+        self._layer_manager.smoothing_changed.connect(lambda *_: self._on_config_changed())
+        self._layer_manager.toggle_all_changed.connect(lambda *_: self._on_config_changed())
 
     def _on_open_file(self) -> None:
         """Handle file open action."""
@@ -168,9 +210,15 @@ class MainWindow(QMainWindow):
         """Load a CSV file."""
         self._statusbar.showMessage(f"Loading {Path(filepath).name}...")
 
+        # Save current file config before loading new file
+        self._save_current_config()
+
         # Clear existing data
         self._plot_widget.clear_all()
         self._layer_manager.clear()
+
+        # Track current file
+        self._current_filepath = filepath
 
         # Load new data
         if self._model.load_csv(filepath):
@@ -183,17 +231,48 @@ class MainWindow(QMainWindow):
         if time_values is None:
             return
 
+        # Check for saved configuration
+        saved_config = None
+        if self._current_filepath:
+            saved_config = self._config_manager.get_file_config(self._current_filepath)
+
+        # Apply saved smoothing if available
+        if saved_config and "smoothing" in saved_config:
+            saved_smoothing = saved_config["smoothing"]
+            self._layer_manager.set_smoothing_value(saved_smoothing)
+            self._current_smoothing = saved_smoothing
+
         for column in self._model.numeric_columns:
-            # Add to layer manager (auto-assigns color)
-            self._layer_manager.add_layer(column)
+            # Check if we have saved config for this layer
+            layer_saved = None
+            if saved_config and "layers" in saved_config:
+                layer_saved = saved_config["layers"].get(column)
+
+            if layer_saved:
+                # Apply saved configuration
+                color = QColor(layer_saved.get("color", "#1f77b4"))
+                visible = layer_saved.get("visible", True)
+                line_width = layer_saved.get("line_width", 1)
+                self._layer_manager.add_layer(
+                    column,
+                    color=color,
+                    visible=visible,
+                    line_width=line_width,
+                )
+            else:
+                # Add with default configuration (auto-assigns color)
+                self._layer_manager.add_layer(column)
 
             # Get configuration from layer manager
             config = self._layer_manager.get_layer_config(column)
             if config is None:
                 continue
 
-            # Get data
-            y_data = self._model.get_column_data(column)
+            # Get data (apply saved smoothing if any)
+            if self._current_smoothing > 1:
+                y_data = self._model.get_smoothed_data(column, self._current_smoothing)
+            else:
+                y_data = self._model.get_column_data(column)
             if y_data is None:
                 continue
 
@@ -205,6 +284,10 @@ class MainWindow(QMainWindow):
                 color=config["color"],
                 width=config["line_width"],
             )
+
+            # Apply visibility from saved config
+            if not config["visible"]:
+                self._plot_widget.set_series_visible(column, False)
 
         # Set plot title
         self._plot_widget.set_title(filename)
@@ -262,6 +345,42 @@ class MainWindow(QMainWindow):
         """Toggle crosshair visibility."""
         self._plot_widget.set_crosshair_visible(checked)
 
+    def _on_toggle_theme(self, checked: bool | None = None) -> None:
+        """Toggle between light and dark theme."""
+        new_theme = self._theme_manager.toggle_theme()
+        # Update the menu action check state
+        self._toggle_theme_action.setChecked(new_theme == Theme.DARK)
+
+    def _on_reset_settings(self) -> None:
+        """Show confirmation dialog and reset settings for the current file."""
+        if not self._current_filepath:
+            QMessageBox.information(
+                self,
+                "No File Loaded",
+                "No file is currently loaded. Open a file first to reset its settings.",
+            )
+            return
+
+        filename = Path(self._current_filepath).name
+        reply = QMessageBox.warning(
+            self,
+            "Reset File Settings",
+            f"This will reset all saved settings for:\n\n"
+            f"{filename}\n\n"
+            f"Including:\n"
+            f"• Layer colors and visibility\n"
+            f"• Line widths\n"
+            f"• Smoothing preferences\n\n"
+            f"Settings for other files will not be affected.\n"
+            f"Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self._config_manager.remove_file_config(self._current_filepath)
+            self._statusbar.showMessage(f"Settings reset for {filename}")
+
     def _on_about(self) -> None:
         """Show about dialog."""
         QMessageBox.about(
@@ -282,3 +401,37 @@ class MainWindow(QMainWindow):
             filepath: Path to the CSV file to load
         """
         self._load_file(filepath)
+
+    def _save_current_config(self) -> None:
+        """Save the current layer configuration to the config manager."""
+        if self._current_filepath is None:
+            return
+
+        # Get all layer configurations
+        layer_configs = self._layer_manager.get_all_configs()
+        if not layer_configs:
+            return
+
+        # Build the full config dict
+        config_dict = {
+            "layers": layer_configs,
+            "smoothing": self._layer_manager.smoothing_value,
+        }
+
+        # Save to config manager
+        self._config_manager.save_file_config(self._current_filepath, config_dict)
+
+    def _on_config_changed(self) -> None:
+        """Handle any configuration change by saving to disk."""
+        self._save_current_config()
+
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        """Handle window close event to save configuration.
+
+        Args:
+            a0: The close event
+        """
+        # Save current configuration before closing
+        self._save_current_config()
+        if a0:
+            a0.accept()

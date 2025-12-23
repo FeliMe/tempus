@@ -153,11 +153,11 @@ class LayerManager(QWidget):
 
         from PyQt6.QtWidgets import QPushButton
 
-        self._toggle_all_btn = QPushButton("Hide All")
+        self._toggle_all_btn = QPushButton("Show All")
         self._toggle_all_btn.setFixedWidth(70)
         self._toggle_all_btn.clicked.connect(self._on_toggle_all)
         layers_header.addWidget(self._toggle_all_btn)
-        self._all_visible = True
+        self._all_visible = False
 
         layout.addLayout(layers_header)
 
@@ -182,12 +182,20 @@ class LayerManager(QWidget):
         self._tree.clear()
         self._layer_items.clear()
 
-    def add_layer(self, name: str, color: QColor | None = None) -> None:
+    def add_layer(
+        self,
+        name: str,
+        color: QColor | None = None,
+        visible: bool = False,
+        line_width: int = 1,
+    ) -> None:
         """Add a new layer to the manager.
 
         Args:
             name: Layer/column name
             color: Color for the layer (auto-assigned if None)
+            visible: Whether the layer is visible (default False for performance)
+            line_width: Line width in pixels (default 1)
         """
         if name in self._layer_items:
             return
@@ -197,6 +205,8 @@ class LayerManager(QWidget):
             color = DEFAULT_COLORS[len(self._layer_items) % len(DEFAULT_COLORS)]
 
         item = LayerItem(name, color, self._tree)
+        item.line_width = line_width
+        item.visible = visible
         self._layer_items[name] = item
 
     def get_layer_config(self, name: str) -> dict[str, Any] | None:
@@ -221,6 +231,36 @@ class LayerManager(QWidget):
     def get_all_layers(self) -> list[str]:
         """Get list of all layer names."""
         return list(self._layer_items.keys())
+
+    def get_all_configs(self) -> dict[str, dict[str, Any]]:
+        """Get configuration for all layers.
+
+        Returns:
+            Dictionary mapping layer names to their configuration dicts.
+            Each config dict contains 'color' (hex string), 'line_width', and 'visible'.
+        """
+        configs: dict[str, dict[str, Any]] = {}
+        for name, item in self._layer_items.items():
+            configs[name] = {
+                "color": item.color.name(),  # Convert QColor to hex string
+                "line_width": item.line_width,
+                "visible": item.visible,
+            }
+        return configs
+
+    def set_smoothing_value(self, value: int) -> None:
+        """Set the smoothing value programmatically.
+
+        Args:
+            value: Smoothing window size (1 = no smoothing)
+        """
+        value = max(1, min(500, value))  # Clamp to valid range
+        self._smoothing_slider.blockSignals(True)
+        self._smoothing_spinbox.blockSignals(True)
+        self._smoothing_slider.setValue(value)
+        self._smoothing_spinbox.setValue(value)
+        self._smoothing_slider.blockSignals(False)
+        self._smoothing_spinbox.blockSignals(False)
 
     @property
     def smoothing_value(self) -> int:
