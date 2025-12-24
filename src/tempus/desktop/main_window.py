@@ -57,7 +57,6 @@ class MainWindow(QMainWindow):
 
         # Set window properties
         self.setWindowTitle("Tempus - Time Series Viewer")
-        self.setMinimumSize(1200, 800)
 
         # Restore geometry if available (TODO: implement settings persistence)
 
