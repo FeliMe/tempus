@@ -32,7 +32,7 @@ If you prefer not to use mise, or if the mise installation fails, you can instal
 #### 1. Install uv (Required)
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -LsSf https://astral.sh/uv/0.7.8/install.sh | sh
 ```
 
 Or use the Makefile target:

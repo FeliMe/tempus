@@ -55,8 +55,8 @@ qt-dev:
 
 install-uv:
 	@if ! command -v uv &> /dev/null; then \
-		echo "Installing uv..."; \
-		curl -LsSf https://astral.sh/uv/install.sh | sh; \
+		echo "Installing uv 0.7.8..."; \
+		curl -LsSf https://astral.sh/uv/0.7.8/install.sh | sh; \
 		echo "uv installed!"; \
 	else \
 		echo "uv is already installed"; \

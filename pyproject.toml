@@ -10,12 +10,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
-    "pandas>=2.0.0",
-    "pyarrow",
-    "PyQt6>=6.6.0",
-    "pyqtgraph>=0.13.0",
-    "pyqtdarktheme>=2.1.0",
-    "numpy>=1.24.0",
+    "pandas==2.3.3",
+    "pyarrow==22.0.0",
+    "PyQt6==6.10.1",
+    "pyqtgraph==0.14.0",
+    "pyqtdarktheme==2.1.0",
+    "numpy==2.4.0",
 ]
 
 [project.scripts]
@@ -23,8 +23,8 @@ tempus-desktop = "tempus.desktop_app:main"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.8.0",
-    "ty>=0.0.1",
+    "ruff==0.14.10",
+    "ty==0.0.5",
 ]
 
 [tool.hatch.build.targets.wheel]
