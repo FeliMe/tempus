@@ -11,12 +11,12 @@ logger = logging.getLogger(__name__)
 class ConfigManager:
     """Manages persistent configuration for layer settings per CSV file.
 
-    Stores settings in a JSON file in the user's home directory. Settings are
-    keyed by the absolute file path of the loaded CSV file.
+    Stores settings in a JSON file in the project directory. Settings are
+    keyed by the file path relative to the user's home directory.
 
     JSON Schema:
     {
-        "/path/to/file.csv": {
+        "relative/path/to/file.csv": {
             "layers": {
                 "ColumnName": {
                     "color": "#FF0000",
@@ -32,7 +32,7 @@ class ConfigManager:
     """
 
     _instance: "ConfigManager | None" = None
-    CONFIG_FILENAME = ".tempus_settings.json"
+    CONFIG_FILENAME = "tempus_settings.json"
 
     def __new__(cls) -> "ConfigManager":
         """Singleton pattern to ensure single config manager instance."""
@@ -46,7 +46,8 @@ class ConfigManager:
             return
 
         self._initialized = True
-        self._config_path = Path.home() / self.CONFIG_FILENAME
+        # Store config in the project directory (where this module is located)
+        self._config_path = Path(__file__).parent.parent.parent.parent / self.CONFIG_FILENAME
         self._config: dict[str, Any] = {}
         self._load_config()
 
@@ -78,6 +79,23 @@ class ConfigManager:
         except OSError as e:
             logger.warning("Failed to save config file: %s", e)
 
+    def _get_relative_key(self, filepath: str | Path) -> str:
+        """Get the file key relative to the user's home directory.
+
+        Args:
+            filepath: Path to the CSV file
+
+        Returns:
+            Path string relative to home directory, or absolute path if not under home.
+        """
+        abs_path = Path(filepath).resolve()
+        home = Path.home()
+        try:
+            return str(abs_path.relative_to(home))
+        except ValueError:
+            # File is not under home directory, use absolute path
+            return str(abs_path)
+
     def get_file_config(self, filepath: str | Path) -> dict[str, Any] | None:
         """Get the stored configuration for a specific file.
 
@@ -88,8 +106,8 @@ class ConfigManager:
             Configuration dictionary with 'layers' and 'smoothing' keys,
             or None if no configuration exists for this file.
         """
-        abs_path = str(Path(filepath).resolve())
-        return self._config.get(abs_path)
+        rel_path = self._get_relative_key(filepath)
+        return self._config.get(rel_path)
 
     def save_file_config(self, filepath: str | Path, config_dict: dict[str, Any]) -> None:
         """Save configuration for a specific file.
@@ -99,8 +117,8 @@ class ConfigManager:
             config_dict: Configuration dictionary with 'layers' and 'smoothing' keys.
                         'layers' should contain layer configurations keyed by column name.
         """
-        abs_path = str(Path(filepath).resolve())
-        self._config[abs_path] = config_dict
+        rel_path = self._get_relative_key(filepath)
+        self._config[rel_path] = config_dict
         self._save_config()
 
     def get_layer_config(self, filepath: str | Path, column_name: str) -> dict[str, Any] | None:
@@ -127,9 +145,9 @@ class ConfigManager:
         Args:
             filepath: Path to the CSV file
         """
-        abs_path = str(Path(filepath).resolve())
-        if abs_path in self._config:
-            del self._config[abs_path]
+        rel_path = self._get_relative_key(filepath)
+        if rel_path in self._config:
+            del self._config[rel_path]
             self._save_config()
 
     def clear_all(self) -> None:
@@ -146,13 +164,13 @@ class ConfigManager:
         Returns:
             True if configuration exists, False otherwise
         """
-        abs_path = str(Path(filepath).resolve())
-        return abs_path in self._config
+        rel_path = self._get_relative_key(filepath)
+        return rel_path in self._config
 
     def reset_all(self) -> bool:
         """Reset all settings by deleting the configuration file.
 
-        This removes the ~/.tempus_settings.json file completely and
+        This removes the tempus_settings.json file completely and
         clears the in-memory configuration.
 
         Returns:

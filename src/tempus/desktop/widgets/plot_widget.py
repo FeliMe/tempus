@@ -234,12 +234,6 @@ class TimeSeriesPlotWidget(QWidget):
         # Connect range change signal
         self._plot_item.sigRangeChanged.connect(self._on_range_changed)
 
-        # Add legend
-        self._legend = self._plot_item.addLegend(offset=(10, 10))
-        self._legend.setBrush(pg.mkBrush(color=colors["legend_background"]))
-        self._legend.setPen(pg.mkPen(color=colors["legend_border"]))
-        self._legend.setLabelTextColor(colors["legend_text"])
-
         # Store current title for theme updates
         self._current_title: str | None = None
 
@@ -267,11 +261,6 @@ class TimeSeriesPlotWidget(QWidget):
 
         # Update grid
         self._plot_item.showGrid(x=True, y=True, alpha=colors["grid_alpha"])
-
-        # Update legend
-        self._legend.setBrush(pg.mkBrush(color=colors["legend_background"]))
-        self._legend.setPen(pg.mkPen(color=colors["legend_border"]))
-        self._legend.setLabelTextColor(colors["legend_text"])
 
         # Update crosshair
         self._crosshair.update_theme()
