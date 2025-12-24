@@ -11,8 +11,12 @@ Usage:
     uv run tempus-desktop [csv_file]
 """
 
+import os
 import sys
 from pathlib import Path
+
+# Apply UI scale factor BEFORE importing QApplication
+os.environ["QT_SCALE_FACTOR"] = "1.5"
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
