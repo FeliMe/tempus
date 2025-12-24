@@ -9,10 +9,6 @@ A high-performance desktop application for visualizing large time-series dataset
 After cloning the repository, you can either double-click the `install.sh` script in your file manager, or run the following commands:
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd tempus
-
 # Option 1: Double-click install.sh in your file manager
 
 # Option 2: Run from terminal
@@ -94,9 +90,7 @@ uv sync
 ## Usage
 
 ```bash
-# Option 1: Double-click run.sh in your file manager
-
-# Option 2: Run from terminal
+# Run the desktop application
 uv run tempus-desktop
 
 # Or open a file directly

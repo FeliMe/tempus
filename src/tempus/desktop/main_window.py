@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 
 from tempus.desktop.model.data_model import DataModel
 from tempus.desktop.theme import Theme, ThemeManager
+from tempus.desktop.widgets.datetime_range_dialog import DateTimeRangeDialog
 from tempus.desktop.widgets.layer_manager import LayerManager
 from tempus.desktop.widgets.plot_widget import TimeSeriesPlotWidget
 from tempus.utils.config_manager import ConfigManager
@@ -105,6 +106,13 @@ class MainWindow(QMainWindow):
         reset_view_action.setShortcut(QKeySequence("Ctrl+R"))
         reset_view_action.triggered.connect(self._on_reset_view)
         view_menu.addAction(reset_view_action)
+
+        set_time_range_action = QAction("Set &Time Range...", self)
+        set_time_range_action.setShortcut(QKeySequence("Ctrl+G"))
+        set_time_range_action.triggered.connect(self._on_set_time_range)
+        view_menu.addAction(set_time_range_action)
+
+        view_menu.addSeparator()
 
         toggle_crosshair_action = QAction("Toggle &Crosshair", self)
         toggle_crosshair_action.setShortcut(QKeySequence("Ctrl+H"))
@@ -389,6 +397,30 @@ class MainWindow(QMainWindow):
     def _on_reset_view(self) -> None:
         """Reset plot view to show all data."""
         self._plot_widget.auto_range()
+
+    def _on_set_time_range(self) -> None:
+        """Open dialog to set a custom time range."""
+        # Get current view range
+        current_start, current_end = self._plot_widget.get_current_time_range()
+
+        # Get full data range
+        data_range = self._plot_widget.get_data_time_range()
+        data_start = data_range[0] if data_range else None
+        data_end = data_range[1] if data_range else None
+
+        # Show dialog
+        dialog = DateTimeRangeDialog(
+            parent=self,
+            current_start=current_start,
+            current_end=current_end,
+            data_start=data_start,
+            data_end=data_end,
+        )
+
+        if dialog.exec() == DateTimeRangeDialog.DialogCode.Accepted:
+            start_ts, end_ts = dialog.get_range()
+            self._plot_widget.set_time_range(start_ts, end_ts)
+            self._statusbar.showMessage("Time range set")
 
     def _on_toggle_crosshair(self, checked: bool) -> None:
         """Toggle crosshair visibility."""

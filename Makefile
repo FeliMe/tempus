@@ -61,3 +61,6 @@ install-uv:
 	else \
 		echo "uv is already installed"; \
 	fi
+
+tempus:
+	uv run tempus-desktop "$@"

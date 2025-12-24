@@ -506,6 +506,46 @@ class TimeSeriesPlotWidget(QWidget):
         x_range = ranges[0]
         self.range_changed.emit(x_range[0], x_range[1])
 
+    def set_time_range(self, start_ts: float, end_ts: float) -> None:
+        """Set the visible X-axis range using Unix timestamps.
+
+        Args:
+            start_ts: Start time as Unix timestamp
+            end_ts: End time as Unix timestamp
+        """
+        self._plot_item.setXRange(start_ts, end_ts, padding=0)
+
+    def get_current_time_range(self) -> tuple[float, float]:
+        """Get current visible X-axis range as Unix timestamps.
+
+        Returns:
+            Tuple of (start_timestamp, end_timestamp)
+        """
+        view_range = self._plot_item.viewRange()
+        return view_range[0][0], view_range[0][1]
+
+    def get_data_time_range(self) -> tuple[float, float] | None:
+        """Get the full data range (min/max timestamps).
+
+        Returns:
+            Tuple of (min_timestamp, max_timestamp) or None if no data
+        """
+        if not self._series_data:
+            return None
+
+        x_min = float("inf")
+        x_max = float("-inf")
+
+        for _name, (x_data, _y_data) in self._series_data.items():
+            if len(x_data) > 0:
+                x_min = min(x_min, float(x_data.min()))
+                x_max = max(x_max, float(x_data.max()))
+
+        if x_min == float("inf") or x_max == float("-inf"):
+            return None
+
+        return x_min, x_max
+
     @property
     def plot_widget(self) -> pg.PlotWidget:
         """Get the underlying pyqtgraph PlotWidget."""
