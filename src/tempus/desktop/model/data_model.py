@@ -97,14 +97,33 @@ class DataModel(QObject):
                 decimal = "."
 
             # Load the data with detected format
-            # Use pyarrow backend for better performance on large files
-            df = pd.read_csv(
-                filepath,
-                sep=separator,
-                decimal=decimal,
-                engine="pyarrow",
-                dtype_backend="pyarrow",
-            )
+            # First try pyarrow backend for better performance on large files
+            # Fall back to python engine for files with inconsistent column counts
+            try:
+                df = pd.read_csv(
+                    filepath,
+                    sep=separator,
+                    decimal=decimal,
+                    engine="pyarrow",
+                    dtype_backend="pyarrow",
+                )
+            except Exception:
+                # Fallback: First read the header to get column names
+                with open(filepath, encoding="utf-8") as f:
+                    header_line = f.readline().strip()
+                column_names = header_line.split(separator)
+
+                # Use python engine with explicit column names to handle ragged CSVs
+                # This fills missing columns with NaN instead of failing
+                df = pd.read_csv(
+                    filepath,
+                    sep=separator,
+                    decimal=decimal,
+                    engine="python",
+                    names=column_names,
+                    header=0,
+                    on_bad_lines="warn",
+                )
 
             # Process the dataframe
             self._process_dataframe(df, filepath.name)
@@ -131,13 +150,21 @@ class DataModel(QObject):
                     self._time_column = col
                 continue
 
-            # Check if column is numeric
+            # Check if column is numeric (handle columns with missing values)
             try:
-                # Convert to numeric if not already
                 if df[col].dtype in [np.float64, np.int64, "float64[pyarrow]", "int64[pyarrow]", "double[pyarrow]"]:
                     self._numeric_columns.append(col)
                 elif pd.api.types.is_numeric_dtype(df[col]):
                     self._numeric_columns.append(col)
+                else:
+                    # Try to convert string/object columns to numeric
+                    # This handles columns that are mostly empty but have some numeric values
+                    numeric_series = pd.to_numeric(df[col], errors="coerce")
+                    # Only include if at least one valid numeric value exists
+                    if numeric_series.notna().any():
+                        # Convert the column in place for later use
+                        self._dataframe[col] = numeric_series
+                        self._numeric_columns.append(col)
             except (ValueError, TypeError):
                 pass
 
